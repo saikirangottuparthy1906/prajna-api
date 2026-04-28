@@ -44,35 +44,25 @@ def get_db():
     finally:
         db.close()
 
-"""
-@app.post("/login")
-def login(data: dict, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.userid == data['username']).first()
-    hashed_password = hashlib.md5(data['password'].encode('utf-8')).hexdigest()
-    logger.info(f"Incoming request: {data['username']} {data['password']}")
-  
-    logger.info(f"User Details: {user}")
-
-    if not user or not secrets.compare_digest(hashed_password,user.pwd):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    token = create_access_token({"sub": user.userid})
-    return {"access_token": token, "token_type": "bearer"}
-"""
 @app.post("/login")
 async def login(data: dict, db: Session = Depends(get_db)):
     try:
         hashed_password = hashlib.md5(data['password'].encode('utf-8')).hexdigest()
         logger.info(f"Incoming request: {data['username']} {data['password']}")
   
-        sql = text("SELECT userid, username, useremail, role, locationcode, access_branchcode  FROM  master_user_entity " \
-        "WHERE userid = :uid AND pwd = :pwd and status = :status")
-        result = db.execute(sql, {"uid": data['username'],"pwd": hashed_password, "status": "Active"})
-        user = result.fetchone()
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-        token = create_access_token({"sub": user.userid})
-        return {"access_token": token, "token_type": "bearer","userInfo": {"username": user.username, "userrole": user.role, "useravatar": "xximg.png", "locationcode": user.locationcode, "access_branchcode": user.access_branchcode}}
+        sqlUserCred = text("SELECT userid, pwd, status,username, useremail, role, locationcode, access_branchcode  FROM  master_user_entity " \
+        "WHERE userid = :uid  ")
+        resultUserCred = db.execute(sqlUserCred, {"uid": data['username']})
+        userCred = resultUserCred.fetchone()
+        if not userCred:
+            raise HTTPException(status_code=404, detail="User Not Found")
+        if userCred.pwd != hashed_password:
+            raise HTTPException(status_code=401, detail="Invalid Credentials")
+        if userCred.status != "Active":
+            raise HTTPException(status_code=401, detail="Inactive User")
+        if userCred:
+            token = create_access_token({"sub": userCred.userid})
+            return {"access_token": token, "token_type": "bearer","userInfo": {"username": userCred.username, "userrole": userCred.role, "useravatar": "xximg.png", "locationcode": userCred.locationcode, "access_branchcode": userCred.access_branchcode}}
    
     finally:
         db.close() # Always close to release the connection
