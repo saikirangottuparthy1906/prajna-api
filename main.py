@@ -62,7 +62,21 @@ async def login(data: dict, db: Session = Depends(get_db)):
             raise HTTPException(status_code=401, detail="Inactive User")
         if userCred:
             token = create_access_token({"sub": userCred.userid})
-            return {"access_token": token, "token_type": "bearer","userInfo": {"username": userCred.username, "userrole": userCred.role, "useravatar": "xximg.png", "locationcode": userCred.locationcode, "access_branchcode": userCred.access_branchcode}}
+            userModules = getModulePages(userCred.role, db)
+            #userModules = []
+            return {"access_token": token, "token_type": "bearer","userInfo": {"username": userCred.username, "userrole": userCred.role, "useravatar": "xximg.png", "locationcode": userCred.locationcode, "access_branchcode": userCred.access_branchcode,"usermodules": userModules}}
    
     finally:
         db.close() # Always close to release the connection
+
+def getModulePages(roleCodes: str, db: Session):
+    sqlPages = text("SELECT pagemodule,pagename,pagecaption,role FROM master_pages where FIND_IN_SET(role,:userRoles) " \
+    "order by pagemodule, pagecaption")
+    resultPages = db.execute(sqlPages, {"userRoles": roleCodes.replace('~',',')})
+    dataPages = resultPages.fetchall()
+    userPages = {};
+    for row in dataPages:
+        if row.pagemodule not in userPages:
+            userPages[row.pagemodule]=[]
+        userPages[row.pagemodule].append({"pagename": row.pagename, "pagecaption": row.pagecaption, "pagerole": row.role})
+    return userPages    
